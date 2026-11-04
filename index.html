@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absen GTK SMAN 1 Long Hubung</title>
+    
+    <!-- Tailwind CSS untuk Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome untuk Ikon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SheetJS untuk Export/Import Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        
+        /* Animasi untuk Running Text */
+        .marquee-container {
+            overflow: hidden;
+            white-space: nowrap;
+            width: 100%;
+            background: #1e3a8a; /* Tailwind blue-900 */
+            color: white;
+            padding: 8px 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .marquee-text {
+            display: inline-block;
+            padding-left: 100%;
+            animation: marquee 20s linear infinite;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        @keyframes marquee {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-100%, 0); }
+        }
+
+        /* Notifikasi Toast Custom (Pengganti Alert) */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            min-width: 250px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.3s ease-out forwards, fadeOut 0.3s ease-in 2.7s forwards;
+            opacity: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast-success { background-color: #10b981; } /* Emerald 500 */
+        .toast-error { background-color: #ef4444; }   /* Red 500 */
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; visibility: hidden; }
+        }
+
+        /* Sembunyikan elemen secara default */
+        .hidden-view { display: none !important; }
+
+        /* Custom Scrollbar untuk tabel */
+        .table-container::-webkit-scrollbar { height: 8px; width: 8px; }
+        .table-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    </style>
+</head>
+<body class="text-gray-800 h-screen overflow-hidden flex flex-col">
+
+    <!-- Kontainer Notifikasi -->
+    <div id="toast-container"></div>
+
+    <!-- ================= VIEW LOGIN ================= -->
+    <div id="loginView" class="flex-1 flex items-center justify-center bg-gray-100 z-50 absolute inset-0">
+        <div class="bg-white p-8 rounded-xl shadow-xl w-full max-w-md border-t-4 border-blue-600 mx-4">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-blue-200">
+                    <i class="fas fa-school text-3xl text-blue-600"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Sistem Absensi GTK</h2>
+                <p class="text-sm text-gray-500">SMAN 1 Long Hubung</p>
+            </div>
+            
+            <form id="loginForm" class="space-y-5" onsubmit="event.preventDefault(); login();">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Username (Admin)</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-user text-gray-400"></i>
+                        </div>
+                        <input type="text" id="loginUsername" required class="pl-10 w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 focus:outline-none" value="admin" readonly>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-lock text-gray-400"></i>
+                        </div>
+                        <input type="password" id="loginPassword" required class="pl-10 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Masukkan password">
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Default password awal: <b>admin</b></p>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition duration-200">
+                    Masuk
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= MAIN APP LAYOUT ================= -->
+    <div id="mainAppView" class="hidden-view flex flex-col h-screen w-full bg-gray-50">
+        
+        <!-- Header & Running Text -->
+        <header class="flex-shrink-0 z-20">
+            <div class="bg-white shadow-sm px-4 sm:px-6 py-3 flex justify-between items-center relative z-10">
+                <div class="flex items-center gap-3">
+                    <button id="mobileMenuBtn" class="md:hidden text-gray-500 hover:text-blue-600 text-xl">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="bg-blue-600 p-2 rounded-lg text-white hidden sm:block">
+                        <i class="fas fa-school"></i>
+                    </div>
+                    <h1 class="text-lg sm:text-xl font-bold text-gray-800">Absen GTK SMAN 1 Long Hubung</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="openModal('settingsModal')" class="text-gray-500 hover:text-blue-600 transition" title="Pengaturan Akun">
+                        <i class="fas fa-cog text-xl"></i>
+                    </button>
+                    <button onclick="logout()" class="text-red-500 hover:text-red-700 transition font-medium text-sm flex items-center gap-2">
+                        <i class="fas fa-sign-out-alt"></i> <span class="hidden sm:inline">Keluar</span>
+                    </button>
+                </div>
+            </div>
+            <!-- Running Text -->
+            <div class="marquee-container">
+                <span class="marquee-text"><i class="fas fa-star text-yellow-300 mr-2"></i> Maju Bersama, Hebat Semua <i class="fas fa-star text-yellow-300 ml-2 mr-6"></i> Selamat datang di Sistem Informasi Absensi Guru dan Tenaga Kependidikan (GTK) SMAN 1 Long Hubung. Pastikan untuk mengisi kehadiran setiap hari kerja.</span>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden relative">
+            <!-- Sidebar / Navigasi -->
+            <aside id="sidebar" class="absolute md:relative w-64 bg-white shadow-md flex-shrink-0 flex-col z-20 h-full transition-transform transform -translate-x-full md:translate-x-0 hidden md:flex">
+                <div class="flex justify-between items-center md:hidden p-4 border-b">
+                    <span class="font-bold text-gray-700">Menu</span>
+                    <button id="closeMenuBtn" class="text-gray-500 hover:text-red-500 text-xl"><i class="fas fa-times"></i></button>
+                </div>
+                <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+                    <button onclick="navigate('dashboardView')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition" data-target="dashboardView">
+                        <i class="fas fa-home w-5 text-center"></i> <span>Dashboard</span>
+                    </button>
+                    <button onclick="navigate('pegawaiView')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition" data-target="pegawaiView">
+                        <i class="fas fa-users w-5 text-center"></i> <span>Data Pegawai</span>
+                    </button>
+                    <button onclick="navigate('absenHarianView')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition" data-target="absenHarianView">
+                        <i class="fas fa-calendar-check w-5 text-center"></i> <span>Absen Harian</span>
+                    </button>
+                    <button onclick="navigate('rekapBulananView')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition" data-target="rekapBulananView">
+                        <i class="fas fa-chart-bar w-5 text-center"></i> <span>Rekapan Bulanan</span>
+                    </button>
+                </nav>
+                <div class="p-4 border-t text-xs text-center text-gray-400">
+                    &copy; 2026 SMAN 1 Long Hubung
+                </div>
+            </aside>
+
+            <!-- Overlay for mobile sidebar -->
+            <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-10 hidden md:hidden"></div>
+
+            <!-- Main Content Area -->
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
+                
+                <!-- ================= 1. DASHBOARD VIEW ================= -->
+                <div id="dashboardView" class="page-view">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Dashboard</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 mb-1">Total Pegawai</p>
+                                <p class="text-3xl font-bold text-gray-800" id="dashTotalPegawai">0</p>
+                            </div>
+                            <div class="bg-blue-100 p-3 rounded-full text-blue-600"><i class="fas fa-users text-xl"></i></div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-emerald-500 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 mb-1">Kehadiran Hari Ini</p>
+                                <p class="text-3xl font-bold text-gray-800" id="dashHadirHariIni">0</p>
+                            </div>
+                            <div class="bg-emerald-100 p-3 rounded-full text-emerald-600"><i class="fas fa-user-check text-xl"></i></div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-orange-500 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500 mb-1">Tidak Hadir Hari Ini</p>
+                                <p class="text-3xl font-bold text-gray-800" id="dashTidakHadirHariIni">0</p>
+                            </div>
+                            <div class="bg-orange-100 p-3 rounded-full text-orange-600"><i class="fas fa-user-times text-xl"></i></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div class="px-6 py-4 border-b bg-gray-50">
+                            <h3 class="font-semibold text-gray-700">Akses Cepat</h3>
+                        </div>
+                        <div class="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <button onclick="navigate('absenHarianView')" class="flex flex-col items-center justify-center p-6 bg-blue-50 hover:bg-blue-100 rounded-lg transition border border-blue-100">
+                                <i class="fas fa-edit text-3xl text-blue-500 mb-3"></i>
+                                <span class="font-medium text-blue-700">Isi Absen Hari Ini</span>
+                            </button>
+                            <button onclick="navigate('pegawaiView')" class="flex flex-col items-center justify-center p-6 bg-purple-50 hover:bg-purple-100 rounded-lg transition border border-purple-100">
+                                <i class="fas fa-user-plus text-3xl text-purple-500 mb-3"></i>
+                                <span class="font-medium text-purple-700">Kelola Pegawai</span>
+                            </button>
+                            <button onclick="navigate('rekapBulananView')" class="flex flex-col items-center justify-center p-6 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition border border-emerald-100">
+                                <i class="fas fa-file-excel text-3xl text-emerald-500 mb-3"></i>
+                                <span class="font-medium text-emerald-700">Unduh Laporan</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 2. DATA PEGAWAI VIEW ================= -->
+                <div id="pegawaiView" class="page-view hidden-view">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <h2 class="text-2xl font-bold text-gray-800">Data Pegawai</h2>
+                        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                            <!-- Input File tersembunyi -->
+                            <input type="file" id="fileImportExcel" accept=".xlsx, .xls" class="hidden" onchange="importExcelPegawai(event)">
+                            <button onclick="document.getElementById('fileImportExcel').click()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center justify-center gap-2">
+                                <i class="fas fa-file-import"></i> Import Excel
+                            </button>
+                            <button onclick="openModal('addPegawaiModal')" class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center justify-center gap-2">
+                                <i class="fas fa-plus"></i> Tambah Manual
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="table-container overflow-x-auto w-full">
+                            <table class="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr class="bg-gray-100 text-gray-700 border-b">
+                                        <th class="py-3 px-4 w-16 text-center font-semibold">No</th>
+                                        <th class="py-3 px-4 font-semibold">Nama Pegawai</th>
+                                        <th class="py-3 px-4 font-semibold">NIP / NUPTK</th>
+                                        <th class="py-3 px-4 font-semibold">Jabatan</th>
+                                        <th class="py-3 px-4 w-24 text-center font-semibold">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelPegawaiBody" class="text-gray-600 divide-y divide-gray-100">
+                                    <!-- Data di-render lewat JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="emptyPegawai" class="hidden text-center py-10">
+                            <i class="fas fa-users text-4xl text-gray-300 mb-3"></i>
+                            <p class="text-gray-500">Belum ada data pegawai.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 3. ABSEN HARIAN VIEW ================= -->
+                <div id="absenHarianView" class="page-view hidden-view">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <h2 class="text-2xl font-bold text-gray-800">Absen Harian</h2>
+                        <div class="flex items-center gap-2 w-full sm:w-auto bg-white px-3 py-2 rounded-lg shadow-sm border">
+                            <i class="fas fa-calendar-alt text-blue-500"></i>
+                            <input type="date" id="tanggalAbsen" class="border-none focus:ring-0 text-gray-700 font-medium outline-none cursor-pointer w-full" onchange="loadAbsensiHarian()">
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="bg-blue-50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
+                            <span class="text-sm text-blue-800 font-medium">Status: <b>H</b>=Hadir, <b>S</b>=Sakit, <b>I</b>=Izin, <b>C</b>=Cuti, <b>DL</b>=Dinas Luar, <b>TK</b>=Tanpa Keterangan</span>
+                        </div>
+                        <div class="table-container overflow-x-auto w-full">
+                            <table class="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr class="bg-gray-100 text-gray-700 border-b">
+                                        <th class="py-3 px-4 w-12 text-center font-semibold">No</th>
+                                        <th class="py-3 px-4 font-semibold">Nama Pegawai</th>
+                                        <th class="py-3 px-4 font-semibold text-center">Status Kehadiran</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelAbsenBody" class="text-gray-600 divide-y divide-gray-100">
+                                    <!-- Data di-render lewat JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="p-4 border-t bg-gray-50 flex justify-end">
+                            <button onclick="simpanAbsensi()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition flex items-center gap-2">
+                                <i class="fas fa-save"></i> Simpan Absensi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= 4. REKAP BULANAN VIEW ================= -->
+                <div id="rekapBulananView" class="page-view hidden-view">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <h2 class="text-2xl font-bold text-gray-800">Rekapan Bulanan</h2>
+                        <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                            <div class="flex items-center gap-2 bg-white px-3 py-2 rounded-lg shadow-sm border w-full sm:w-auto">
+                                <i class="fas fa-calendar-alt text-emerald-500"></i>
+                                <input type="month" id="bulanRekap" class="border-none focus:ring-0 text-gray-700 font-medium outline-none cursor-pointer w-full" onchange="generateRekap()">
+                            </div>
+                            <button onclick="exportRekapExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center justify-center gap-2 w-full sm:w-auto">
+                                <i class="fas fa-file-excel"></i> Unduh Excel
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="table-container overflow-x-auto w-full">
+                            <table id="tabelRekapExport" class="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr class="bg-gray-100 text-gray-700 border-b">
+                                        <th rowspan="2" class="py-2 px-4 w-12 text-center font-semibold border-r">No</th>
+                                        <th rowspan="2" class="py-2 px-4 font-semibold border-r min-w-[200px]">Nama Pegawai</th>
+                                        <th colspan="6" class="py-2 px-4 text-center font-semibold border-b">Total Status Kehadiran</th>
+                                    </tr>
+                                    <tr class="bg-gray-50 text-gray-600 border-b text-sm">
+                                        <th class="py-2 px-3 text-center border-r" title="Hadir">H</th>
+                                        <th class="py-2 px-3 text-center border-r" title="Sakit">S</th>
+                                        <th class="py-2 px-3 text-center border-r" title="Izin">I</th>
+                                        <th class="py-2 px-3 text-center border-r" title="Cuti">C</th>
+                                        <th class="py-2 px-3 text-center border-r" title="Dinas Luar">DL</th>
+                                        <th class="py-2 px-3 text-center" title="Tanpa Keterangan">TK</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelRekapBody" class="text-gray-600 divide-y divide-gray-100">
+                                    <!-- Data di-render lewat JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- Modal Tambah Pegawai -->
+    <div id="addPegawaiModal" class="fixed inset-0 bg-black bg-opacity-50 z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-800">Tambah Pegawai Manual</h3>
+                <button onclick="closeModal('addPegawaiModal')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <form id="formAddPegawai" class="p-6 space-y-4" onsubmit="event.preventDefault(); simpanPegawaiBaru();">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap *</label>
+                    <input type="text" id="addNama" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Masukkan nama">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">NIP / NUPTK</label>
+                    <input type="text" id="addNip" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Kosongkan jika tidak ada">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Jabatan</label>
+                    <input type="text" id="addJabatan" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Misal: Guru Mapel, Staff TU">
+                </div>
+                <div class="pt-4 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('addPegawaiModal')" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pengaturan Akun (Ubah Password) -->
+    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-800"><i class="fas fa-cog text-gray-500 mr-2"></i> Pengaturan Admin</h3>
+                <button onclick="closeModal('settingsModal')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <form id="formSettings" class="p-6 space-y-4" onsubmit="event.preventDefault(); simpanPasswordBaru();">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password Baru *</label>
+                    <input type="password" id="newPassword" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Masukkan password baru">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Konfirmasi Password *</label>
+                    <input type="password" id="confirmPassword" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Ulangi password baru">
+                </div>
+                <div class="pt-4 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('settingsModal')" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">Ubah Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <script>
+        // --- State Management ---
+        let dataPegawai = JSON.parse(localStorage.getItem('gtk_pegawai')) || [];
+        let dataAbsensi = JSON.parse(localStorage.getItem('gtk_absensi')) || {}; // Format: { "YYYY-MM-DD": { idPegawai: "Status" } }
+        let currentView = 'dashboardView';
+
+        // Set default date to today
+        document.addEventListener("DOMContentLoaded", () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tanggalAbsen').value = today;
+            
+            const currentMonth = today.substring(0, 7); // YYYY-MM
+            document.getElementById('bulanRekap').value = currentMonth;
+            
+            checkAuth();
+            setupMobileMenu();
+        });
+
+        // --- Auth Logic ---
+        function login() {
+            const passInput = document.getElementById('loginPassword').value;
+            const savedPass = localStorage.getItem('gtk_admin_pass') || 'admin';
+            
+            if (passInput === savedPass) {
+                sessionStorage.setItem('gtk_is_logged_in', 'true');
+                document.getElementById('loginPassword').value = '';
+                showToast('Login berhasil', 'success');
+                showApp();
+            } else {
+                showToast('Password salah!', 'error');
+            }
+        }
+
+        function checkAuth() {
+            if (sessionStorage.getItem('gtk_is_logged_in') === 'true') {
+                showApp();
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('gtk_is_logged_in');
+            document.getElementById('mainAppView').classList.add('hidden-view');
+            document.getElementById('loginView').classList.remove('hidden-view');
+            showToast('Berhasil keluar', 'success');
+        }
+
+        function showApp() {
+            document.getElementById('loginView').classList.add('hidden-view');
+            document.getElementById('mainAppView').classList.remove('hidden-view');
+            navigate('dashboardView');
+        }
+
+        function simpanPasswordBaru() {
+            const newP = document.getElementById('newPassword').value;
+            const confP = document.getElementById('confirmPassword').value;
+            
+            if (newP !== confP) {
+                showToast('Konfirmasi password tidak cocok!', 'error');
+                return;
+            }
+            if (newP.length < 3) {
+                showToast('Password minimal 3 karakter', 'error');
+                return;
+            }
+            
+            localStorage.setItem('gtk_admin_pass', newP);
+            showToast('Password berhasil diubah', 'success');
+            closeModal('settingsModal');
+            document.getElementById('formSettings').reset();
+        }
+
+        // --- Navigation Logic ---
+        function navigate(viewId) {
+            // Hide all views
+            document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden-view'));
+            // Show target view
+            document.getElementById(viewId).classList.remove('hidden-view');
+            currentView = viewId;
+
+            // Update active state di sidebar
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if (btn.dataset.target === viewId) {
+                    btn.classList.add('bg-blue-50', 'text-blue-600', 'border-r-4', 'border-blue-600');
+                    btn.classList.remove('text-gray-600');
+                } else {
+                    btn.classList.remove('bg-blue-50', 'text-blue-600', 'border-r-4', 'border-blue-600');
+                    btn.classList.add('text-gray-600');
+                }
+            });
+
+            // Close mobile menu if open
+            if(window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+                document.getElementById('sidebar').classList.remove('flex');
+                document.getElementById('sidebar').classList.add('hidden');
+                document.getElementById('sidebarOverlay').classList.add('hidden');
+            }
+
+            // Run specific logic per view
+            if (viewId === 'dashboardView') updateDashboard();
+            if (viewId === 'pegawaiView') renderTablePegawai();
+            if (viewId === 'absenHarianView') loadAbsensiHarian();
+            if (viewId === 'rekapBulananView') generateRekap();
+        }
+
+        function setupMobileMenu() {
+            const btnOpen = document.getElementById('mobileMenuBtn');
+            const btnClose = document.getElementById('closeMenuBtn');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            const toggleMenu = () => {
+                sidebar.classList.toggle('hidden');
+                sidebar.classList.toggle('flex');
+                
+                // Small delay to allow display flex to apply before sliding
+                setTimeout(() => {
+                    sidebar.classList.toggle('-translate-x-full');
+                    overlay.classList.toggle('hidden');
+                }, 10);
+            };
+
+            btnOpen.addEventListener('click', toggleMenu);
+            btnClose.addEventListener('click', toggleMenu);
+            overlay.addEventListener('click', toggleMenu);
+        }
+
+        // --- Dashboard Logic ---
+        function updateDashboard() {
+            const today = new Date().toISOString().split('T')[0];
+            const dataHariIni = dataAbsensi[today] || {};
+            
+            let hadir = 0;
+            let tidakHadir = 0; // S, I, C, DL, TK
+
+            dataPegawai.forEach(p => {
+                const status = dataHariIni[p.id] || 'TK'; // default TK jika belum diabsen
+                if (status === 'H') {
+                    hadir++;
+                } else {
+                    tidakHadir++;
+                }
+            });
+
+            document.getElementById('dashTotalPegawai').innerText = dataPegawai.length;
+            document.getElementById('dashHadirHariIni').innerText = hadir;
+            document.getElementById('dashTidakHadirHariIni').innerText = tidakHadir;
+        }
+
+        // --- Data Pegawai Logic ---
+        function renderTablePegawai() {
+            const tbody = document.getElementById('tabelPegawaiBody');
+            const emptyState = document.getElementById('emptyPegawai');
+            tbody.innerHTML = '';
+            
+            if (dataPegawai.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            
+            dataPegawai.forEach((pegawai, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-center">${index + 1}</td>
+                    <td class="py-3 px-4 font-medium text-gray-800">${pegawai.nama}</td>
+                    <td class="py-3 px-4">${pegawai.nip || '-'}</td>
+                    <td class="py-3 px-4">${pegawai.jabatan || '-'}</td>
+                    <td class="py-3 px-4 text-center">
+                        <button onclick="hapusPegawai(${pegawai.id})" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition" title="Hapus">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function simpanPegawaiBaru() {
+            const nama = document.getElementById('addNama').value.trim();
+            const nip = document.getElementById('addNip').value.trim();
+            const jabatan = document.getElementById('addJabatan').value.trim();
+            
+            if (!nama) return;
+
+            const id = new Date().getTime();
+            dataPegawai.push({ id, nama, nip, jabatan });
+            simpanDataKeLokal();
+            
+            showToast(`Pegawai ${nama} berhasil ditambahkan`, 'success');
+            closeModal('addPegawaiModal');
+            document.getElementById('formAddPegawai').reset();
+            
+            if (currentView === 'pegawaiView') renderTablePegawai();
+        }
+
+        function hapusPegawai(id) {
+            // Pengganti confirm() standar -> langsung hapus dengan toast undo jika sempat, tapi disini langsung saja untuk simpel
+            dataPegawai = dataPegawai.filter(p => p.id !== id);
+            simpanDataKeLokal();
+            renderTablePegawai();
+            showToast('Data pegawai dihapus', 'success');
+        }
+
+        function importExcelPegawai(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = evt.target.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonArr = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    let imported = 0;
+                    jsonArr.forEach(row => {
+                        // Coba mendeteksi kolom nama dengan berbagai variasi casing
+                        const nama = row['Nama'] || row['NAMA'] || row['nama'] || row['Nama Pegawai'];
+                        if (nama) {
+                            const nip = row['NIP'] || row['nip'] || row['NIP/NUPTK'] || '';
+                            const jabatan = row['Jabatan'] || row['jabatan'] || row['JABATAN'] || '';
+                            
+                            dataPegawai.push({
+                                id: new Date().getTime() + Math.floor(Math.random() * 1000),
+                                nama: String(nama).trim(),
+                                nip: String(nip).trim(),
+                                jabatan: String(jabatan).trim()
+                            });
+                            imported++;
+                        }
+                    });
+                    
+                    if (imported > 0) {
+                        simpanDataKeLokal();
+                        renderTablePegawai();
+                        showToast(`${imported} data pegawai diimport`, 'success');
+                    } else {
+                        showToast('Format Excel tidak sesuai. Pastikan ada kolom "Nama"', 'error');
+                    }
+                } catch (error) {
+                    showToast('Gagal membaca file Excel', 'error');
+                }
+                // Reset input
+                document.getElementById('fileImportExcel').value = '';
+            };
+            reader.readAsBinaryString(file);
+        }
+
+
+        // --- Absen Harian Logic ---
+        function loadAbsensiHarian() {
+            const tgl = document.getElementById('tanggalAbsen').value;
+            const tbody = document.getElementById('tabelAbsenBody');
+            tbody.innerHTML = '';
+
+            if (dataPegawai.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-6 text-gray-500">Belum ada data pegawai. Silakan tambah di menu Data Pegawai.</td></tr>`;
+                return;
+            }
+
+            // Ambil data absen untuk tanggal yang dipilih
+            const dataHariIni = dataAbsensi[tgl] || {};
+            const opsiStatus = [
+                { val: 'H', label: 'Hadir', color: 'text-emerald-600 bg-emerald-50' },
+                { val: 'S', label: 'Sakit', color: 'text-yellow-600 bg-yellow-50' },
+                { val: 'I', label: 'Izin', color: 'text-blue-600 bg-blue-50' },
+                { val: 'C', label: 'Cuti', color: 'text-purple-600 bg-purple-50' },
+                { val: 'DL', label: 'Dinas Luar', color: 'text-indigo-600 bg-indigo-50' },
+                { val: 'TK', label: 'Tanpa Keterangan', color: 'text-red-600 bg-red-50' }
+            ];
+
+            dataPegawai.forEach((pegawai, index) => {
+                const tr = document.createElement('tr');
+                const currStatus = dataHariIni[pegawai.id] || 'H'; // Default Hadir jika baru dibuka
+                
+                let selectHTML = `<select class="status-select bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" data-id="${pegawai.id}">`;
+                
+                opsiStatus.forEach(opt => {
+                    const selected = currStatus === opt.val ? 'selected' : '';
+                    selectHTML += `<option value="${opt.val}" ${selected} class="${opt.color}">${opt.label} (${opt.val})</option>`;
+                });
+                selectHTML += `</select>`;
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-center">${index + 1}</td>
+                    <td class="py-3 px-4 font-medium text-gray-800">
+                        ${pegawai.nama}
+                        <div class="text-xs text-gray-500 font-normal mt-1">${pegawai.jabatan || ''}</div>
+                    </td>
+                    <td class="py-3 px-4 w-48">${selectHTML}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function simpanAbsensi() {
+            const tgl = document.getElementById('tanggalAbsen').value;
+            if (!tgl) {
+                showToast('Pilih tanggal terlebih dahulu', 'error');
+                return;
+            }
+
+            const selects = document.querySelectorAll('.status-select');
+            const dataHariIni = {};
+            
+            selects.forEach(select => {
+                const pegId = select.getAttribute('data-id');
+                const val = select.value;
+                dataHariIni[pegId] = val;
+            });
+
+            dataAbsensi[tgl] = dataHariIni;
+            localStorage.setItem('gtk_absensi', JSON.stringify(dataAbsensi));
+            
+            showToast(`Absensi tanggal ${tgl} berhasil disimpan`, 'success');
+            if (currentView === 'dashboardView') updateDashboard();
+        }
+
+        // --- Rekapan Bulanan Logic ---
+        function generateRekap() {
+            const bulanStr = document.getElementById('bulanRekap').value; // format YYYY-MM
+            if (!bulanStr) return;
+            
+            const tbody = document.getElementById('tabelRekapBody');
+            tbody.innerHTML = '';
+
+            if (dataPegawai.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-gray-500">Tidak ada data pegawai.</td></tr>`;
+                return;
+            }
+
+            // Hitung akumulasi untuk setiap pegawai berdasarkan bulan
+            const rekap = {}; 
+            // Inisialisasi counter per pegawai
+            dataPegawai.forEach(p => {
+                rekap[p.id] = { H:0, S:0, I:0, C:0, DL:0, TK:0, nama: p.nama };
+            });
+
+            // Filter data absensi untuk bulan yang dipilih
+            Object.keys(dataAbsensi).forEach(tanggal => {
+                if (tanggal.startsWith(bulanStr)) {
+                    const absenHarian = dataAbsensi[tanggal];
+                    Object.keys(absenHarian).forEach(idPegawai => {
+                        const status = absenHarian[idPegawai];
+                        if (rekap[idPegawai] && rekap[idPegawai][status] !== undefined) {
+                            rekap[idPegawai][status]++;
+                        }
+                    });
+                }
+            });
+
+            // Render ke tabel
+            dataPegawai.forEach((p, index) => {
+                const data = rekap[p.id];
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-2 px-4 text-center border-r">${index + 1}</td>
+                    <td class="py-2 px-4 font-medium text-gray-800 border-r">${data.nama}</td>
+                    <td class="py-2 px-3 text-center border-r text-emerald-600 font-semibold bg-emerald-50">${data.H}</td>
+                    <td class="py-2 px-3 text-center border-r text-yellow-600 bg-yellow-50">${data.S}</td>
+                    <td class="py-2 px-3 text-center border-r text-blue-600 bg-blue-50">${data.I}</td>
+                    <td class="py-2 px-3 text-center border-r text-purple-600 bg-purple-50">${data.C}</td>
+                    <td class="py-2 px-3 text-center border-r text-indigo-600 bg-indigo-50">${data.DL}</td>
+                    <td class="py-2 px-3 text-center text-red-600 font-semibold bg-red-50">${data.TK}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportRekapExcel() {
+            const bulanStr = document.getElementById('bulanRekap').value;
+            if (!bulanStr) {
+                showToast('Pilih bulan terlebih dahulu', 'error');
+                return;
+            }
+
+            const table = document.getElementById('tabelRekapExport');
+            
+            // Clone table to modify for clean export (remove colors/icons if needed, but SheetJS parses text mostly)
+            const wb = XLSX.utils.table_to_book(table, {sheet: "Rekap"});
+            
+            XLSX.writeFile(wb, `Rekap_Absensi_GTK_${bulanStr}.xlsx`);
+            showToast('File Excel berhasil diunduh', 'success');
+        }
+
+        // --- Utilities ---
+        function simpanDataKeLokal() {
+            localStorage.setItem('gtk_pegawai', JSON.stringify(dataPegawai));
+        }
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('hidden');
+            // Sedikit delay untuk transisi
+            setTimeout(() => {
+                modal.children[0].classList.add('scale-100');
+                modal.children[0].classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.add('hidden');
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            // Tentukan style berdasarkan tipe
+            let bgColor = type === 'success' ? 'toast-success' : 'toast-error';
+            let icon = type === 'success' ? '<i class="fas fa-check-circle text-xl"></i>' : '<i class="fas fa-exclamation-circle text-xl"></i>';
+
+            toast.className = `toast ${bgColor}`;
+            toast.innerHTML = `${icon} <span class="font-medium text-sm">${message}</span>`;
+            
+            container.appendChild(toast);
+
+            // Hapus elemen dari DOM setelah animasi selesai (3 detik)
+            setTimeout(() => {
+                if(toast.parentElement) {
+                    toast.remove();
+                }
+            }, 3000);
+        }
+
+    </script>
+</body>
+</html>
